@@ -23,15 +23,6 @@ async function getLocalCredentials(username, type) {
 
 // -- Express.js Server -- //
 
-// -- Ad Server (used for testing, not needed) -- //
-app.get('/api/ads/*', (req, res) => {
-    res.json({ error: 'Ads have been disabled for this kiosk.' })
-});
-
-app.post('/api/ads/*', (req, res) => {
-    res.json({ error: 'Ads have been disabled for this kiosk.' })
-});
-
 // Redbox Desktop + Field Maintenance login endpoint
 app.post("/api/kiosk/authenticate", async (req, res) => {
     const credentials = await getLocalCredentials(req.body.Username, req.body.UseNtAuthentication ? 'desktop' : 'field');
