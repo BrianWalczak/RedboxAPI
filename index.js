@@ -23,10 +23,7 @@ async function getLocalCredentials(username, type) {
 
 // -- Express.js Server -- //
 
-app.get('/', (req, res) => {
-    res.redirect(`https://${process.env.BASE_DOMAIN}/`);
-});
-
+// -- Ad Server (used for testing, not needed) -- //
 app.get('/api/ads/*', (req, res) => {
     res.json({ error: 'Ads have been disabled for this kiosk.' })
 });
@@ -166,7 +163,7 @@ app.post("/api/loyalty/updateaccount", async (req, res) => {
 
     res.json({
         "messageId": req.body.MessageId,
-        "kioskId": kioskId,
+        "kioskId": req.body.KioskId,
         "customerProfileNumber": update.data.cpn,
         "mobilePhoneNumber": update.data?.phoneNumber || '',
         "tempPassword": update.data.tempPassword // this is a temporary password for their Redbox account

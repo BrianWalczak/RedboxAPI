@@ -8,6 +8,7 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
+const RATE_LIMITING = process.env.RATE_LIMITING === 'true' ? true : false;
 const GENERAL_RATE_LIMIT = rateLimit({
     windowMs: 24 * 60 * 60 * 1000, // 24 hours
     limit: 300, // 300 requests per IP per 24 hours (this is for the entire website, so just viewing the pages counts)
@@ -41,12 +42,11 @@ const UPDATE_RATE_LIMIT = rateLimit({
 });
 
 const usersFilePath = path.join(__dirname, process.env.USERS_FILE_PATH);
-if(process.env.NGINX_PROXY_MANAGER.toString() === 'true') app.set('trust proxy', 'loopback'); // configured for nginx proxy manager
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
-app.use(GENERAL_RATE_LIMIT);
+if(RATE_LIMITING) app.use(GENERAL_RATE_LIMIT);
 app.use(session({ // login sessions
     secret: process.env.SESSION_TOKEN,
     resave: false,
@@ -174,7 +174,7 @@ app.post('/delete', async (req, res) => {
 });
 
 // Login and create a session
-app.post('/login', rejectLoggedIn, LOGIN_RATE_LIMIT, async (req, res) => {
+app.post('/login', rejectLoggedIn, (RATE_LIMITING ? LOGIN_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
     const { 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken } = req.body;
     const email = providedEmail.toLowerCase(); // lower case email
 
@@ -206,7 +206,7 @@ app.post('/login', rejectLoggedIn, LOGIN_RATE_LIMIT, async (req, res) => {
 });
 
 // Signup as a new user for program
-app.post('/signup', SIGNUP_RATE_LIMIT, rejectLoggedIn, async (req, res) => {
+app.post('/signup', (RATE_LIMITING ? SIGNUP_RATE_LIMIT : (req, res, next) => next()), rejectLoggedIn, async (req, res) => {
     const { firstName, 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken } = req.body;
     const email = providedEmail.toLowerCase(); // lower case email
 
@@ -255,7 +255,7 @@ app.post('/signup', SIGNUP_RATE_LIMIT, rejectLoggedIn, async (req, res) => {
 });
 
 // If a user signs up at kiosk, we don't know their name! This fixes that problem.
-app.post("/migrateName", UPDATE_RATE_LIMIT, async (req, res) => {
+app.post("/migrateName", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
     const { firstName } = req.body;
     const users = await readUsers();
 
@@ -274,7 +274,7 @@ app.post("/migrateName", UPDATE_RATE_LIMIT, async (req, res) => {
     res.json({ success: true });
 });
 
-app.post("/update", UPDATE_RATE_LIMIT, async (req, res) => {
+app.post("/update", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
     if(!req.session.user) {
         res.redirect('/login');
     } else {
@@ -318,7 +318,7 @@ app.post("/update", UPDATE_RATE_LIMIT, async (req, res) => {
     }
 });
 
-app.post("/kiosk", UPDATE_RATE_LIMIT, async (req, res) => {
+app.post("/kiosk", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
     if(!req.session.user) {
         res.redirect('/login');
     } else {

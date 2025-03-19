@@ -48,7 +48,7 @@ async function sendSignup(email, password, kioskId) {
         html: `
             <p>You're in! Thanks for signing up at your local Redbox kiosk.</p>
             <p><strong>Your temporary password for your Redbox account is: <code>${password}</code></strong></p>
-            <p>You can access your online account by <a href="https://${process.env.BASE_DOMAIN}/login">clicking here</a>.</p>
+            <p>You can access your online account by <a href="https://${process.env.BASE_DOMAIN || 'redbox.com'}/login">clicking here</a>.</p>
             <p>If you didn't create this account, please reply to this email immediately to let us know.</p>
 
             <br><p>As a special thanks for signing up, you'll receive a FREE 1-night disc rental on your next purchase. Thanks for being a part of Redbox!</p>
