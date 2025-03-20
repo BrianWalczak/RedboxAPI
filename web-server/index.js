@@ -128,7 +128,7 @@ app.get('/login', (req, res) => {
     if(req.session.user) {
         res.redirect('/dashboard');
     } else {
-        res.render('login', { recaptcha: process.env.RECAPTCHA_PUBLIC_KEY });
+        res.render('login', { recaptcha: process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null });
     }
 });
 
@@ -136,7 +136,7 @@ app.get('/signup', (req, res) => {
     if(req.session.user) {
         res.redirect('/dashboard');
     } else {
-        res.render('signup', { recaptcha: process.env.RECAPTCHA_PUBLIC_KEY });
+        res.render('signup', { recaptcha: process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null });
     }
 });
 
@@ -147,7 +147,7 @@ app.get('/dashboard', async (req, res) => {
         const users = await readUsers();
         const user = users.find(user => user.cpn === req.session.user);
 
-        res.render('dashboard', { user, recaptcha: process.env.RECAPTCHA_PUBLIC_KEY, newUser: (!user.firstName) });
+        res.render('dashboard', { user, recaptcha: (process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null), newUser: (!user.firstName) });
     }
 });
 
@@ -175,16 +175,16 @@ app.post('/delete', async (req, res) => {
 
 // Login and create a session
 app.post('/login', rejectLoggedIn, (RATE_LIMITING ? LOGIN_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
-    const { 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken } = req.body;
+    const { 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken = null } = req.body;
     const email = providedEmail.toLowerCase(); // lower case email
 
     // Check if they have all the fields
-    if (!email || !password || !recaptchaToken) {
+    if (!email || !password || (!recaptchaToken && process.env.USE_RECAPTCHA === 'true')) {
         return res.json({ error: 'It looks like your request was malformed. Please refresh the page and try again!' });
     }
 
     // Verify the reCAPTCHA
-    if (!(await verifyRecaptcha(recaptchaToken))) {
+    if (process.env.USE_RECAPTCHA === 'true' && !(await verifyRecaptcha(recaptchaToken))) {
         return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
     }
 
@@ -207,11 +207,11 @@ app.post('/login', rejectLoggedIn, (RATE_LIMITING ? LOGIN_RATE_LIMIT : (req, res
 
 // Signup as a new user for program
 app.post('/signup', (RATE_LIMITING ? SIGNUP_RATE_LIMIT : (req, res, next) => next()), rejectLoggedIn, async (req, res) => {
-    const { firstName, 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken } = req.body;
+    const { firstName, 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken = null } = req.body;
     const email = providedEmail.toLowerCase(); // lower case email
 
     // Check if they have all the fields
-    if (!firstName || !email || !password || !recaptchaToken) {
+    if (!firstName || !email || !password || (!recaptchaToken && process.env.USE_RECAPTCHA === 'true')) {
         return res.json({ error: 'It looks like your request was malformed. Please refresh the page and try again!' });
     }
 
@@ -221,7 +221,7 @@ app.post('/signup', (RATE_LIMITING ? SIGNUP_RATE_LIMIT : (req, res, next) => nex
     }
 
     // Verify the reCAPTCHA
-    if (!(await verifyRecaptcha(recaptchaToken))) {
+    if (process.env.USE_RECAPTCHA === 'true' && !(await verifyRecaptcha(recaptchaToken))) {
         return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
     }
 
@@ -278,11 +278,11 @@ app.post("/update", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => nex
     if(!req.session.user) {
         res.redirect('/login');
     } else {
-        const { 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken } = req.body;
+        const { 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken = null } = req.body;
         const email = providedEmail.toLowerCase(); // lower case email
 
         // Verify the reCAPTCHA
-        if (!(await verifyRecaptcha(recaptchaToken))) {
+        if (process.env.USE_RECAPTCHA === 'true' && !(await verifyRecaptcha(recaptchaToken))) {
             return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
         }
 

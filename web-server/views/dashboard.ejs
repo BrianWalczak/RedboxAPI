@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.6">
     <title>Dashboard | Redbox Perks</title>
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <% if (recaptcha) { %>
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <% } %>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,7 +46,9 @@
             <label for="password">Update Password:</label>
             <input type="password" id="password" name="password" placeholder="Enter a new password...">
 
-            <div class="g-recaptcha" data-sitekey="<%= recaptcha %>"></div>
+            <% if (recaptcha) { %>
+                <div class="g-recaptcha" data-sitekey="<%= recaptcha %>"></div>
+            <% } %>
             <p class="message" id="message"></p>
             <button type="submit">Update</button>
         </form>
@@ -149,6 +153,7 @@
         });
     </script>
     <script>    
+        const useRecaptcha = <%= recaptcha ? true : false %>;
         const message = $('#message');
 
         $('#update-form').on('submit', async function(event) {
@@ -157,9 +162,9 @@
     
             const email = $('#email').val().trim();
             const password = $('#password').val().trim();
-            const recaptchaResponse = grecaptcha.getResponse();
+            let recaptchaResponse = useRecaptcha && typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
     
-            if(!recaptchaResponse) {
+            if(!recaptchaResponse && useRecaptcha) {
                 return message.html('In order to verify your request, complete the reCAPTCHA.');
             }
 
@@ -181,7 +186,7 @@
                     message.html('<span style="color: green;">Your details have been successfully updated!</span>');
                 }
 
-                grecaptcha.reset();
+                if (useRecaptcha) grecaptcha.reset();
             } catch (error) {
                 message.html('It looks like updates are currently disabled.');
                 console.error(error);
