@@ -23,24 +23,28 @@ async function logTransaction(orderId, trans) {
         Purchased: []
     };
 
-    trans.ShoppingCart.Groups.forEach(group => {
-        if(group.GroupType === 1) { // Rentals
-            items.Rental.push(...group.Items);
-        }
+    if (trans?.ShoppingCart?.Groups) {
+        trans.ShoppingCart.Groups.forEach(group => {
+            if(!group.Items) return;
 
-        if(group.GroupType === 2) { // Purchases
-            items.Purchased.push(...group.Items);
-        }
-    });
+            if(group.GroupType === 1) { // Rentals
+                items.Rental.push(...group.Items);
+            }
+
+            if(group.GroupType === 2) { // Purchases
+                items.Purchased.push(...group.Items);
+            }
+        });
+    }
 
     data[orderId] = {
-        email: trans?.Email || null,
+        email: trans?.Email,
         kioskId: trans?.KioskId,
-        transactionDate: trans.TransactionDate,
-        customerProfileNumber: trans?.CustomerProfileNumber || null,
+        transactionDate: trans?.TransactionDate || new Date().toISOString(),
+        customerProfileNumber: trans?.CustomerProfileNumber,
         items: items,
-        discounts: trans.ShoppingCart.Discounts,
-        cardInformation: trans.CreditCard
+        discounts: trans?.ShoppingCart?.Discounts || [],
+        cardInformation: trans?.CreditCard || {}
     };
 
     await fs.promises.writeFile(transPath, JSON.stringify(data, null, 2), "utf8");
@@ -49,6 +53,7 @@ async function logTransaction(orderId, trans) {
 
 async function returnedDisc(kioskId, barcode, date) {
     const data = JSON.parse(await fs.promises.readFile(transPath, "utf8"));
+    if(!barcode || !date) return [];
 
     // Find all transactions containing the disc barcode and hasn't been returned yet (at the same kiosk)
     const transactions = Object.values(data).filter(transaction =>

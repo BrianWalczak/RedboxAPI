@@ -27,23 +27,27 @@ const POINTS_PER_NIGHT = {
 
 function estimateAccrual(user, data, excludeRentals = false) {
     let items = [];
+    if(!data || !data.Groups) return items;
+
     data.Groups.forEach(group => {
         const groupType = group.GroupType;
         if (groupType === 1 && excludeRentals === true) return; // don't include rentals if not wanted
 
+        if(!group.Items) return; // no items to process
         group.Items.forEach(item => {
             let points = 0;
             
             if (groupType === 1) { // Rentals
-                const rentalDays = item.Pricing.InitialDays || 1;
+                const rentalDays = item?.Pricing?.InitialDays || 1;
                 points = POINTS_PER_NIGHT['Accrual'] * rentalDays;
             }
             
             if (groupType === 2) { // Used disc purchases
-                const tierPoints = TIER_MULTIPLIER[user.loyalty.currentTier] || 50;
-                points = Math.round(item.Pricing.Purchase * tierPoints);
+                const tierPoints = TIER_MULTIPLIER[user?.loyalty?.currentTier || 'Member'] || 50; // fallback to Member (shouldn't happen)
+                points = Math.round((item?.Pricing?.Purchase || 0.00) * tierPoints);
             }
 
+            if(!item.ProductId) return; // extra error handling for invalid products
             items.push({
                 productId: item.ProductId,
                 points: points
@@ -87,6 +91,7 @@ function calculateTier(purchases) {
 }
 
 async function initialRewards(user, data) {
+    if(!data) return;
     const accrual = estimateAccrual(user, data, true); // exclude rentals since those are credited later, they could only receive points immediately for purchased discs, returned ones will receive points later
     let earningPoints = 0;
     let losingPoints = 0;
@@ -109,6 +114,8 @@ async function initialRewards(user, data) {
 }
 
 async function updateRewards(barcode, transaction) {
+    if(!barcode || !transaction) return; // no data to process
+    
     const item = transaction.items.Rental.find(item => item.returnedDate && item.Barcode == barcode.toString()); // find the barcode in the transaction
     if(!item) return;
 

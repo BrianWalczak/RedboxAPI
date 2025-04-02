@@ -195,7 +195,7 @@ app.post("/api/transaction/reconcile", async (req, res) => {
 
     if(req.body?.CustomerProfileNumber) {
         const user = await getUserByProfileNumber(req.body.CustomerProfileNumber);
-        await initialRewards(user, req.body.ShoppingCart); // update user rewards if logged in
+        await initialRewards(user, req.body?.ShoppingCart); // update user rewards if logged in
     }
 
     if(req.body?.Email) {
@@ -211,12 +211,12 @@ app.post("/api/transaction/reconcile", async (req, res) => {
 
 // This occurs when a user returns their disc at a kiosk
 app.post("/api/transaction/return", async (req, res) => {
-    const transactions = await returnedDisc(req.body.KioskId, req.body.Barcode, req.body.ReturnDate);
+    const transactions = await returnedDisc(req.body?.KioskId, req.body?.Barcode, req.body?.ReturnDate);
     if(!transactions) return res.json({ success: true });
 
     for (const transaction of transactions) {
         if(transaction.customerProfileNumber) {
-            await updateRewards(req.body.Barcode, transaction);
+            await updateRewards(req.body?.Barcode, transaction);
         }
     }
 

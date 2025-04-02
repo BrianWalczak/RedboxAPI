@@ -26,6 +26,7 @@ function formatDate(isoString) {
 }
 
 function fromCardBIN(bin) {
+    if(!bin) return 'Promo';
     const binStr = bin.toString();
     
     if (/^4/.test(binStr)) return 'Visa';
@@ -35,7 +36,7 @@ function fromCardBIN(bin) {
     if (/^35/.test(binStr)) return 'JCB';
     if (/^(?:2131|1800)/.test(binStr)) return 'JCB (Old)';
 
-    return 'Unknown';
+    return 'Other';
 }
 
 async function sendSignup(email, password, kioskId) {
@@ -61,7 +62,19 @@ async function sendSignup(email, password, kioskId) {
 
 async function sendReceipt(orderId, data) {
     if(!data?.Email) return false;
-    const store = await getStore(data.KioskId);
+    const store = data.KioskId ? await getStore(data.KioskId) : null;
+    let transactionDetails = {};
+
+    if(data?.ShoppingCart?.Groups) {
+        transactionDetails = {
+            subtotal: data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.Subtotal, 0).toFixed(2),
+            tax: data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.TaxAmount, 0).toFixed(2),
+            total: data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.GrandTotal, 0).toFixed(2),
+
+            discount: data.ShoppingCart.Discounts.reduce((sum, item) => sum + item.Amount, 0).toFixed(2),
+            adjustedSubtotal: data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.DiscountedSubtotal, 0).toFixed(2),
+        };
+    }
 
     try {
         let html = `
@@ -88,26 +101,26 @@ async function sendReceipt(orderId, data) {
                 </tr>
                 <tr>
                     <td><b>Receipt Date:</b></td>
-                    <td>${formatDate(data.TransactionDate)}</td>
+                    <td>${formatDate(data?.TransactionDate || new Date().toISOString())}</td>
                 </tr>
                 <tr>
                     <td><b>Order Total:</b></td>
-                    <td>${data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.GrandTotal, 0).toFixed(2)}</td>
+                    <td>${transactionDetails?.total || '0.00'}</td>
                 </tr>
                 <tr>
                     <td><b>Payment Card:</b></td>
-                    <td>${fromCardBIN(data.CreditCard.BIN)}....${data.CreditCard.LastFour}</td>
+                    <td>${fromCardBIN(data?.CreditCard?.BIN)}....${data?.CreditCard?.LastFour || '0000'}</td>
                 </tr>
                 <tr>
                     <td><b>Redbox Location:</b></td>
-                    <td>${store.Banner} <a href="http://www.redbox.com/movies/kiosk/${data.KioskId}">(see available movies)</a></tr>
+                    <td>${store?.Banner || 'Unknown'} <a href="${data.KioskId ? ('http://www.redbox.com/movies/kiosk/' + data.KioskId) : 'http://www.redbox.com/'}">(see available movies)</a></tr>
                 <tr>
                     <td/>
-                    <td>${store.Address}</td>
+                    <td>${store?.Address || 'Address not found'}</td>
                 </tr>
                 <tr>
                     <td/>
-                    <td>${store.City}, ${store.State} ${store.ZipCode}</td>
+                    <td>${(store.City && store.State && store.ZipCode) ? (store.City + ', ' + store.State + ' ' + store.ZipCode) : ''}</td>
                 </tr>
             </table>
             <table id="TransactionTable" style="width:100%;" cellSpacing="0" cellPadding="0" border="0">
@@ -135,12 +148,12 @@ async function sendReceipt(orderId, data) {
                 <tr>
                     <td colspan="2"></td>
                     <td>Subtotal:</td>
-                    <td align="left">${data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.Subtotal, 0).toFixed(2)}</td>
+                    <td align="left">${transactionDetails?.subtotal || '0.00'}</td>
                 </tr>
                 <tr>
                     <td colspan="2"></td>
                     <td>Promo Savings:</td>
-                    <td align="left">${data.ShoppingCart.Discounts.reduce((sum, item) => sum + item.Amount, 0).toFixed(2)}</td>
+                    <td align="left">${transactionDetails?.discount || '0.00'}</td>
                 </tr>
                 <tr>
                     <td colspan="2"></td>
@@ -152,12 +165,12 @@ async function sendReceipt(orderId, data) {
                     <td colspan="2">Reserve it online to guarantee it's there: <a href="http://www.redbox.com">www.redbox.com</a></td>
                     </td>
                     <td>Adjusted Subtotal:</td>
-                    <td align="left">${data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.DiscountedSubtotal, 0).toFixed(2)}</td>
+                    <td align="left">${transactionDetails?.adjustedSubtotal || '0.00'}</td>
                 </tr>
                 <tr>
                     <td colspan="2"></td>
                     <td>Tax:</td>
-                    <td align="left">${data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.TaxAmount, 0).toFixed(2)}</td>
+                    <td align="left">${transactionDetails?.tax || '0.00'}</td>
                 </tr>
                 <tr>
                     <td colspan="2"></td>
@@ -168,7 +181,7 @@ async function sendReceipt(orderId, data) {
                 <tr>
                     <td colspan="2"></td>
                     <td>TOTAL CHARGE:</td>
-                    <td align="left">${data.ShoppingCart.Groups.reduce((sum, group) => sum + group.Totals.GrandTotal, 0).toFixed(2)}</td>
+                    <td align="left">${transactionDetails?.total || '0.00'}</td>
                 </tr>
             </table><b>Questions? Comments? Talk to redbox!</b>
             <hr class="ThinHr" />
@@ -191,19 +204,21 @@ async function sendReceipt(orderId, data) {
         `;
 
         let lineItems = '';
-        data.ShoppingCart.Groups.forEach(group => {
-            group.Items.forEach(item => {
-                lineItems += `
-                <tr class="LineItem">
-                    <td>${item.ProductName}</td>
-                    <td align="left">${item.Barcode}</td>
-                    <td align="left">${group.GroupType === 1 ? 'Rental' : 'Purchase'}</td>
-                    <td align="left">$${group.GroupType === 1 ? item.Pricing.InitialNight.toFixed(2) : item.Pricing.Purchase.toFixed(2)}</td>
-                    <td> </td>
-                </tr>
-                `;
+        if(data?.ShoppingCart?.Groups) {
+            data.ShoppingCart.Groups.forEach(group => {
+                group.Items.forEach(item => {
+                    lineItems += `
+                    <tr class="LineItem">
+                        <td>${item.ProductName}</td>
+                        <td align="left">${item.Barcode}</td>
+                        <td align="left">${group.GroupType === 1 ? 'Rental' : 'Purchase'}</td>
+                        <td align="left">$${group.GroupType === 1 ? item.Pricing.InitialNight.toFixed(2) : item.Pricing.Purchase.toFixed(2)}</td>
+                        <td> </td>
+                    </tr>
+                    `;
+                });
             });
-        });
+        }
         html = html.replace('--- INSERT LINE ITEMS HERE ---', lineItems);
 
         const info = await transporter.sendMail({
