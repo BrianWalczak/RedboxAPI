@@ -42,6 +42,13 @@ RECAPTCHA_SECRET_KEY="" # Replace with reCAPTCHA secret key (optional, leave bla
 SERVER_PORT="3000" # Port the Redbox Perks website will be live on
 SESSION_TOKEN="A4c9JkT8vG2YyLw5gPsQz9fA1uKJm7eT6wExRzC9jX4sZbF2mT" # Used for express sessions (case-sensitive)
 RATE_LIMITING="false" # Used to prevent spam requests, you may need to configure the web server manually to trust proxies if using nginx, apache, etc.
+
+# Points for new members
+NEW_POINT_BALANCE=2000
+
+# Default Tier User is signed up for.
+# Accepted Options: Member, Star, Superstar, Legend
+NEW_TIER_DEFAULT="Member"
 ```
 
 > ##### If you'd like to use reCAPTCHA (completely optional), you'll need to create a new project by visiting your [Google Cloud Console](https://console.cloud.google.com/). Then, visit the **APIs & Services** page and enable the [reCAPTCHA Enterprise API](https://console.cloud.google.com/apis/library/recaptchaenterprise.googleapis.com) (you may need to search for it). After enabling the API for your Google Cloud project, access the reCAPTCHA dashboard [here](https://www.google.com/u/1/recaptcha/admin/create) and follow the steps to add your domain (the one you'll use for the dashboard) and get your reCAPTCHA keys.

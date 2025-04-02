@@ -1,6 +1,7 @@
 const { decrypt, encMethod } = require('./encryption.js');
 const { readUsers, saveUsers, updateUser, createCPN, getUserByProfileNumber } = require('./utils.js');
 const bcrypt = require('bcryptjs');
+require('dotenv').config();
 
 /*
     Earn 150 points per night when you rent a disc
