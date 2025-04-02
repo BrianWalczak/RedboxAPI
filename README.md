@@ -43,10 +43,13 @@ SERVER_PORT="3000" # Port the Redbox Perks website will be live on
 SESSION_TOKEN="A4c9JkT8vG2YyLw5gPsQz9fA1uKJm7eT6wExRzC9jX4sZbF2mT" # Used for express sessions (case-sensitive)
 RATE_LIMITING="false" # Used to prevent spam requests, you may need to configure the web server manually to trust proxies if using nginx, apache, etc.
 
-# Points for new members
+
+# -- Loyalty Configuration (optional) -- #
+
+# Signup bonus granted to new members (currently 1 free night)
 NEW_POINT_BALANCE=2000
 
-# Default Tier User is signed up for.
+# Default tier the user is signed up for.
 # Accepted Options: Member, Star, Superstar, Legend
 NEW_TIER_DEFAULT="Member"
 ```
@@ -65,6 +68,8 @@ Make sure Standalone mode on your Redbox kiosk is **disabled**. You can find thi
 
 Next, you'll need to configure a few environment variables (`.env`).
 ```bash
+# Looking for a domain to host your Redbox API? You can get a free one at www.redbox.my!
+
 BASE_DOMAIN="example.com" # Replace this with your hosted web-server domain (optional, used for signup emails)
 SERVER_PORT="2000" # Port the Redbox API will be live on
 
@@ -75,24 +80,33 @@ SMTP_PORT=465
 SMTP_USERNAME="email@example.com"
 SMTP_PASSWORD="password"
 
+
+# -- Loyalty Configuration (optional) -- #
+
 # Points per $1.00 spent based on tier (for used disc purchases)
 EARNING_MEMBER=50
 EARNING_STAR=50
 EARNING_SUPERSTAR=75
 EARNING_LEGEND=100
 
-# Amount of points earned per night
+# Amount of points earned per night (rentals)
 RENTAL_POINTS_PER_NIGHT=150
 
 # Redemption amount needed for 1 free night rental
 RENTAL_REDEMPTION_GOAL=2000
 
-# Points for new members
+# Signup bonus granted to new members (currently 1 free night)
 NEW_POINT_BALANCE=2000
 
-# Default Tier User is signed up for.
+# Default tier the user is signed up for.
 # Accepted Options: Member, Star, Superstar, Legend
 NEW_TIER_DEFAULT="Member"
+
+# Amount of purchases needed for each tier level-up
+TIER_MEMBER_PURCHASES=0 # No minimum requirement
+TIER_STAR_PURCHASES=10 # 10+ purchases minimum
+TIER_SUPERSTAR_PURCHASES=20 # 20+ purchases minimum
+TIER_LEGEND_PURCHASES=50 # 50+ purchases minimum
 ```
 
 Once these steps are complete and your API server is configured, start it by running the `index.js` file in the root project folder.
