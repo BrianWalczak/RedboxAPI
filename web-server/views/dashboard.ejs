@@ -19,7 +19,11 @@
 
     <div class="form-container">
         <h1>Welcome, <%= user?.firstName || "Customer" %>!</h1>
-        <p style="text-align: center;">You've been a Redbox member since <%= new Date(user.signupDate).getFullYear() %>.</p>
+        <p style="text-align: center;">
+            You've been a Redbox member since 
+            <%= (d => `${d.toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })} UTC`)
+                (new Date(user.signupDate)) %>.
+        </p>
         <div class="statistics">  
             <div class="item">
                 <h1><%= user.loyalty.pointBalance > 9999 ? '9000+' : user.loyalty.pointBalance || '0'; %></h1>
