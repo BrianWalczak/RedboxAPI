@@ -14,14 +14,14 @@ const bcrypt = require('bcryptjs');
     Source: https://www.redbox.com/perks
 */
 const TIER_MULTIPLIER = { // points per $1.00 spent based on tier (for used disc purchases)
-    "Member": 50,
-    "Star": 50,
-    "Superstar": 75,
-    "Legend": 100
+    "Member": process.env.EARNING_MEMBER || 50,
+    "Star": process.env.EARNING_STAR || 50,
+    "Superstar": process.env.SUPERSTAR || 75,
+    "Legend": process.env.EARNING_LEGEND || 100
 };
 const POINTS_PER_NIGHT = {
-    "Accrual": 150, // 150 points per night
-    "Redemption": 2000 // 2,000 points per night
+    "Accrual": process.env.RENTAL_POINTS_PER_NIGHT || 150, // 150 points per night
+    "Redemption": process.env.RENTAL_REDEMPTION_GOAL || 2000 // 2,000 points per night
 }
 
 function estimateAccrual(user, data, excludeRentals = false) {
@@ -173,8 +173,8 @@ async function createAccount(data) {
         "pin": pin ? await bcrypt.hash(pin, 10) : null, // hash the PIN w/ bcrypt
         "hashed": true, // migrate to bcrypt for hashing (safe storage of passwords)
         "loyalty": {
-            "pointBalance": 2000, // Get a FREE 1-night disc rental for signing up.
-            "currentTier": "Member", // this is their tier (calculated based on purchases)
+            "pointBalance": process.env.NEW_POINT_BALANCE || 2000, // Get a FREE 1-night disc rental for signing up.
+            "currentTier": process.env.NEW_TIER_DEFAULT || "Member", // this is their tier (calculated based on purchases)
             "tierCounter": 0 // this is their purchase count
         },
         "promoCodes": []

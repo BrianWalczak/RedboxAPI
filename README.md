@@ -67,6 +67,25 @@ SMTP_PORT=465
 
 SMTP_USERNAME="email@example.com"
 SMTP_PASSWORD="password"
+
+# Points per $1.00 spent based on tier (for used disc purchases)
+EARNING_MEMBER=50
+EARNING_STAR=50
+EARNING_SUPERSTAR=75
+EARNING_LEGEND=100
+
+# Amount of points earned per night
+RENTAL_POINTS_PER_NIGHT=150
+
+# Redemption amount needed for 1 free night rental
+RENTAL_REDEMPTION_GOAL=2000
+
+# Points for new members
+NEW_POINT_BALANCE=2000
+
+# Default Tier User is signed up for.
+# Accepted Options: Member, Star, Superstar, Legend
+NEW_TIER_DEFAULT="Member"
 ```
 
 Once these steps are complete and your API server is configured, start it by running the `index.js` file in the root project folder.
