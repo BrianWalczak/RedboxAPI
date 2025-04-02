@@ -78,15 +78,12 @@ function estimateRedemption(data) {
 }
 
 function calculateTier(purchases) {
-    if (purchases < 10) {
-        return "Member"; // < 10 purchases
-    } else if (purchases >= 10 && purchases <= 19) {
-        return "Star"; // 10-19 rentals
-    } else if (purchases >= 20 && purchases <= 49) {
-        return "Superstar"; // 20-49 rentals
-    } else if (purchases >= 50) {
-        return "Legend"; // 50+ rentals
-    }
+    if (purchases >= (process.env.TIER_LEGEND_PURCHASES || 50)) return "Legend"; // 50+ purchases minimum (default)
+    if (purchases >= (process.env.TIER_SUPERSTAR_PURCHASES || 20)) return "Superstar"; // 20+ purchases minimum (default)
+    if (purchases >= (process.env.TIER_STAR_PURCHASES || 10)) return "Star"; // 10+ purchases minimum (default)
+    if (purchases >= (process.env.TIER_MEMBER_PURCHASES || 0)) return "Member"; // No minimum requirement (default)
+
+    return "Member"; // Default to Member if all else fails (should never happen)
 }
 
 async function initialRewards(user, data) {
