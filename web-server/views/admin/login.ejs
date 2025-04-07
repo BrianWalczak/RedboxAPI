@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.6">
-    <title>Login | Redbox Perks</title>
+    <title>Login (for Admins) | Redbox Perks</title>
     <% if (recaptcha) { %>
         <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <% } %>
@@ -14,29 +14,26 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <%- include('header') %>
+    <%- include('../header') %>
     <div class="form-container">
-        <h1>Login to Redbox Perks</h1>
-        <p style="text-align: center;">Login to view your rewards and make changes to your account.</p>
+        <h1>Admin Dashboard</h1>
+        <p style="text-align: center;">Sign in to manage Redbox accounts and access your configuration.</p>
 
         <form id="login-form">
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required placeholder="email@example.com" style="margin-bottom: 5px;"><br><br>
+            <label for="password">Token:</label>
+            <input style="margin-bottom: 0px;" type="password" id="password" name="password" placeholder="*******************************************" required><br><br>
 
-            <label for="password">Password:</label>
-            <input style="margin-bottom: 0px;" type="password" id="password" name="password" placeholder="*************" required><br><br>
             <% if (recaptcha) { %>
                 <div class="g-recaptcha" data-sitekey="<%= recaptcha %>"></div>
             <% } %>
-            <button type="submit" style="margin-bottom: 5px;">Login</button>
-            <center><small><a href="/admin">Are you an admin? Access the dashboard here.</a></small></center>
+            <button type="submit">Login</button>
         </form>
 
         <p class="message" id="message" style="margin-bottom: 0px;"></p>
     </div>
-    <p style="margin-top: 10px;">Don't yet have an account? <a href="/signup">Get one here.</a></p>
+    <p style="margin-top: 10px;">Are you a Redbox Perks customer? <a href="/login">Log in here.</a></p>
 
-    <%- include('footer') %>
+    <%- include('../footer') %>
     <script>
         const useRecaptcha = <%= recaptcha ? true : false %>;
         const message = $('#message');
@@ -45,11 +42,10 @@
             event.preventDefault();
             message.text('');
     
-            const emailAddress = $('#email').val().trim();
             const password = $('#password').val().trim();
             let recaptchaToken = useRecaptcha && typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
     
-            if (!emailAddress || !password) {
+            if (!password) {
                 return message.text('Please fill out all fields before submitting.');
             } else if(!recaptchaToken && useRecaptcha) {
                 return message.text('In order to verify your request, complete the reCAPTCHA.');
@@ -57,9 +53,9 @@
 
             try {
                 const response = await $.ajax({
-                    url: '/login',
+                    url: '/admin',
                     method: 'POST',
-                    data: { emailAddress, password, recaptchaToken },
+                    data: { password, recaptchaToken },
                     dataType: 'json'
                 });
     
@@ -67,19 +63,13 @@
                     message.text(response.error);
                     if (useRecaptcha) grecaptcha.reset();
                 } else if(response.success == true) {
-                    window.location.href = '/dashboard';
+                    window.location.href = '/admin/dashboard';
                 }
             } catch (error) {
-                message.text('It looks like logins are currently disabled.');
+                message.text('It looks like administrator access has been disabled.');
                 console.error(error);
             }
         });
-    </script>
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        if(urlParams.has('deleted')) {
-            message.text('Your account has been deleted! Thanks for using Redbox.');
-        }
     </script>
 </body>
 </html>

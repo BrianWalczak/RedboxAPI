@@ -9,6 +9,8 @@ require('dotenv').config();
 
 const app = express();
 const RATE_LIMITING = process.env.RATE_LIMITING === 'true' ? true : false;
+app.locals.recaptcha = process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null;
+
 const GENERAL_RATE_LIMIT = rateLimit({
     windowMs: 24 * 60 * 60 * 1000, // 24 hours
     limit: 300, // 300 requests per IP per 24 hours (this is for the entire website, so just viewing the pages counts)
@@ -41,7 +43,7 @@ const UPDATE_RATE_LIMIT = rateLimit({
     message: "It looks like you've reached the maximum updates, please try again in 5 minutes."
 });
 
-const usersFilePath = path.join(__dirname, process.env.USERS_FILE_PATH);
+const dbFilePath = path.join(process.env.API_ENVIRONMENT || '../', 'database');
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -60,18 +62,27 @@ app.use(session({ // login sessions
 
 // Read users from users.json
 async function readUsers() {
-    const data = await fs.promises.readFile(usersFilePath, 'utf8');
-
     try {
-        return JSON.parse(data);
-    } catch(error) {
+        const data = await fs.promises.readFile(path.join(dbFilePath, 'users.json'), 'utf8');
+
+        try {
+            return JSON.parse(data);
+        } catch(error) {
+            return [];
+        }
+    } catch (error) {
+        console.error("Error occurred when reading user database: ", error);
         return [];
     }
 }
 
 // Save users to users.json
 async function saveUsers(users) {
-    await fs.promises.writeFile(usersFilePath, JSON.stringify(users, null, 2), 'utf8');
+    try {
+        await fs.promises.writeFile(path.join(dbFilePath, 'users.json'), JSON.stringify(users, null, 2), 'utf8');
+    } catch(error) {
+        console.error("Error occurred when saving user database: ", error);
+    }
 }
 
 // Creates a user ID, checks for one that's unused
@@ -106,6 +117,29 @@ async function verifyRecaptcha(recaptchaToken) {
     }
 }
 
+// Generate analytics from authorized transactions
+const analyticsCache = [];
+
+async function generateAnalytics() {
+    try {
+        const data = JSON.parse(await fs.promises.readFile(path.join(dbFilePath, 'transactions.json'), "utf8"));
+        const transactions = Object.keys(data).map(transactionId => ({
+            transactionId,
+            ...data[transactionId]
+        }));
+    
+        analyticsCache.length = 0; // clear the cache
+        transactions.forEach(transaction => {
+            analyticsCache.push({ date: transaction.transactionDate, rentals: transaction.items.Rental.length, purchases: transaction.items.Purchased.length });
+        });
+    
+        return analyticsCache;
+    } catch (error) {
+        console.error("Error occurred when generating analytics: ", error);
+        return [];
+    }
+}
+
 // Check if an email is valid
 function isValidEmail(email) {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -114,9 +148,47 @@ function isValidEmail(email) {
 
 // Prevents logged-in users from accessing the login and signup pages
 const rejectLoggedIn = (req, res, next) => {
-    if (req.session.user) {
-        return res.send('It looks like you already have an account for perks.');
+    const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
+
+    if (req.session[isAdminPath ? 'admin' : 'user']) {        
+        if (req.method === 'GET') {
+            return res.redirect(isAdminPath ? '/admin/dashboard' : '/dashboard');
+        } else if (req.method === 'POST') {
+            return res.send(isAdminPath ? 'It looks like you are already authorized as an admin.' : 'It looks like you already have an account for perks.');
+        }
     }
+    
+    next();
+};
+
+// Aceepts logged-in users to access the dashboard page and other pages
+const acceptLoggedIn = async (req, res, next) => {
+    console.log(req.path);
+    const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
+
+    if (!req.session[isAdminPath ? 'admin' : 'user']) {
+        if (req.method === 'GET') {
+            return res.redirect(isAdminPath ? '/admin' : '/login');
+        } else if (req.method === 'POST') {
+            return res.send("It looks like your session has expired. Please log in again.");
+        }
+    }
+
+    // Check if the users account was terminated before allowing access
+    if (!isAdminPath) {
+        const user = await readUsers().then(users => users.find(user => user.cpn === req.session.user));
+        
+        if (!user || user?.disabled) {
+            delete req.session.user; // remove the session if the user doesn't exist or is disabled
+            
+            if (req.method === 'GET') {
+                return res.redirect('/login');
+            } else {
+                return res.send("It looks like your account has been terminated. Please contact support.");
+            }
+        }
+    }
+    
     next();
 };
 
@@ -124,75 +196,63 @@ app.get('/', (req, res) => {
     res.redirect('/login'); // we don't have a home page yet..
 });
 
-app.get('/login', (req, res) => {
-    if(req.session.user) {
-        res.redirect('/dashboard');
-    } else {
-        res.render('login', { recaptcha: process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null });
-    }
+app.get('/login', rejectLoggedIn, (req, res) => {
+    res.render('login');
 });
 
-app.get('/signup', (req, res) => {
-    if(req.session.user) {
-        res.redirect('/dashboard');
-    } else {
-        res.render('signup', { recaptcha: process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null });
-    }
+app.get('/signup', rejectLoggedIn, (req, res) => {
+    res.render('signup');
 });
 
-app.get('/dashboard', async (req, res) => {
-    if(!req.session.user) {
-        res.redirect('/login');
-    } else {
-        const users = await readUsers();
-        const user = users.find(user => user.cpn === req.session.user);
+app.get('/dashboard', acceptLoggedIn, async (req, res) => {
+    const users = await readUsers();
+    const user = users.find(user => user.cpn === req.session.user);
 
-        res.render('dashboard', { user, recaptcha: (process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null), newUser: (!user.firstName) });
-    }
+    res.render('dashboard', { user });
 });
 
-app.get('/logout', (req, res) => {
+app.get('/logout', acceptLoggedIn, (req, res) => {
     if(req.session.user) {
-        req.session.destroy();
+        delete req.session.user;
     }
 
     res.redirect('/login');
 });
 
 // Delete the user's account completely
-app.post('/delete', async (req, res) => {
-    if(!req.session.user) {
-        res.redirect('/login');
-    } else {
-        const users = await readUsers();
-        const newUsers = users.filter(user => user.cpn !== req.session.user); // filter out the user from the users.json file (removing them)
-        await saveUsers(newUsers);
+app.post('/delete', acceptLoggedIn, async (req, res) => {
+    const users = await readUsers();
+    const newUsers = users.filter(user => user.cpn !== req.session.user); // filter out the user from the users database (removing them)
+    await saveUsers(newUsers);
 
-        req.session.destroy();
-        res.redirect('/login/?deleted=true'); // deleted param for success message
-    }
+    delete req.session.user;
+    res.redirect('/login/?deleted=true'); // deleted param for success message
 });
 
 // Login and create a session
 app.post('/login', rejectLoggedIn, (RATE_LIMITING ? LOGIN_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
-    const { 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken = null } = req.body;
+    const { 'emailAddress': providedEmail, password, recaptchaToken = null } = req.body;
     const email = providedEmail.toLowerCase(); // lower case email
 
     // Check if they have all the fields
-    if (!email || !password || (!recaptchaToken && process.env.USE_RECAPTCHA === 'true')) {
+    if (!email || !password || (!recaptchaToken && app.locals.recaptcha)) {
         return res.json({ error: 'It looks like your request was malformed. Please refresh the page and try again!' });
     }
 
     // Verify the reCAPTCHA
-    if (process.env.USE_RECAPTCHA === 'true' && !(await verifyRecaptcha(recaptchaToken))) {
+    if (app.locals.recaptcha && !(await verifyRecaptcha(recaptchaToken))) {
         return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
     }
 
     // Check if the user exists
-    const users = await readUsers();
-    const user = users.find(user => user.emailAddress === email);
+    const user = await readUsers().then(users => users.find(user => user.emailAddress === email));
     if (!user) {
         return res.json({ error: 'It looks like your email or password provided is incorrect.' });
+    }
+
+    // Check if the user is disabled
+    if (user?.disabled) {
+        return res.json({ error: 'Your account has been terminated. Please contact support.' });
     }
 
     // Check if the password is correct
@@ -206,12 +266,12 @@ app.post('/login', rejectLoggedIn, (RATE_LIMITING ? LOGIN_RATE_LIMIT : (req, res
 });
 
 // Signup as a new user for program
-app.post('/signup', (RATE_LIMITING ? SIGNUP_RATE_LIMIT : (req, res, next) => next()), rejectLoggedIn, async (req, res) => {
-    const { firstName, 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken = null } = req.body;
+app.post('/signup', rejectLoggedIn, (RATE_LIMITING ? SIGNUP_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
+    const { firstName, 'emailAddress': providedEmail, password, recaptchaToken = null } = req.body;
     const email = providedEmail.toLowerCase(); // lower case email
 
     // Check if they have all the fields
-    if (!firstName || !email || !password || (!recaptchaToken && process.env.USE_RECAPTCHA === 'true')) {
+    if (!firstName || !email || !password || (!recaptchaToken && app.locals.recaptcha)) {
         return res.json({ error: 'It looks like your request was malformed. Please refresh the page and try again!' });
     }
 
@@ -221,7 +281,7 @@ app.post('/signup', (RATE_LIMITING ? SIGNUP_RATE_LIMIT : (req, res, next) => nex
     }
 
     // Verify the reCAPTCHA
-    if (process.env.USE_RECAPTCHA === 'true' && !(await verifyRecaptcha(recaptchaToken))) {
+    if (app.locals.recaptcha && !(await verifyRecaptcha(recaptchaToken))) {
         return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
     }
 
@@ -255,7 +315,7 @@ app.post('/signup', (RATE_LIMITING ? SIGNUP_RATE_LIMIT : (req, res, next) => nex
 });
 
 // If a user signs up at kiosk, we don't know their name! This fixes that problem.
-app.post("/migrateName", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
+app.post("/migrateName", acceptLoggedIn, (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
     const { firstName } = req.body;
     const users = await readUsers();
 
@@ -274,85 +334,285 @@ app.post("/migrateName", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) =
     res.json({ success: true });
 });
 
-app.post("/update", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
-    if(!req.session.user) {
-        res.redirect('/login');
-    } else {
-        const { 'email': providedEmail, password, 'g-recaptcha-response': recaptchaToken = null } = req.body;
-        const email = providedEmail.toLowerCase(); // lower case email
+// Update the user's account information (email, password, etc.)
+app.post("/update", acceptLoggedIn, (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
+    const { 'emailAddress': providedEmail, password, recaptchaToken = null } = req.body;
+    const email = providedEmail.toLowerCase(); // lower case email
 
-        // Verify the reCAPTCHA
-        if (process.env.USE_RECAPTCHA === 'true' && !(await verifyRecaptcha(recaptchaToken))) {
-            return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
-        }
-
-        const users = await readUsers();
-        const user = users.find(user => user.cpn === req.session.user);
-        const passwordMatch = user.hashed ? (await bcrypt.compare(password, (user.password || ''))) : ((user.password || '') === password); // check if password changed at all
-
-        if(email.length !== 0 && !(email === user.emailAddress)) {
-            if(!isValidEmail(email)) return res.json({ error: 'Please enter a valid email address.' });
-
-            if(users.find(user => user.emailAddress === email)) {
-                return res.json({ error: 'This email already has an account.' });
-            } else {
-                user.emailAddress = email;
-
-                await saveUsers(users);
-            }
-        }
-
-        if(password.length !== 0 && !passwordMatch) {
-            if(password.length < 6) {
-                return res.json({ error: 'Password must be at least 6 characters long.' });
-            } else if(password.length > 30) {
-                return res.json({ error: 'Password must be less than 30 characters long.' });
-            } else {
-                user.password = user.hashed ? await bcrypt.hash(password, 10) : password; // update the password w/ bcrypt (or plain-text if hashing disabled)
-
-                await saveUsers(users);
-            }
-        }
-
-        res.json({ success: true });
+    // Verify the reCAPTCHA
+    if (app.locals.recaptcha && !(await verifyRecaptcha(recaptchaToken))) {
+        return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
     }
-});
 
-app.post("/kiosk", (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
-    if(!req.session.user) {
-        res.redirect('/login');
-    } else {
-        const { phoneNumber, pin } = req.body;
+    const users = await readUsers();
+    const user = users.find(user => user.cpn === req.session.user);
+    const passwordMatch = user.hashed ? (await bcrypt.compare(password, (user.password || ''))) : ((user.password || '') === password); // check if password changed at all
 
-        const users = await readUsers();
-        const user = users.find(user => user.cpn === req.session.user);
-        const pinMatch = user.hashed ? (await bcrypt.compare(pin, (user.pin || ''))) : ((user.pin || '') === pin); // check if PIN changed at all
-        const numberMatch = user.phoneNumber === phoneNumber; // check if number changed at all
+    if(email.length !== 0 && !(email === user.emailAddress)) {
+        if(!isValidEmail(email)) return res.json({ error: 'Please enter a valid email address.' });
 
-        if(phoneNumber.length === 10 && !isNaN(Number(phoneNumber)) && !numberMatch) {
-            if(users.find(user => user.phoneNumber === phoneNumber)) {
-                return res.json({ error: 'This phone number is already linked to another account.' });
-            } else {
-                user.phoneNumber = phoneNumber;
-
-                await saveUsers(users);
-            }
-        }
-
-        if(pin.length === 4 && !isNaN(Number(pin)) && !pinMatch) {
-            user.pin = user.hashed ? await bcrypt.hash(pin, 10) : pin; // update the PIN w/ bcrypt (or plain-text if hashing disabled)
+        if(users.find(user => user.emailAddress === email)) {
+            return res.json({ error: 'This email already has an account.' });
+        } else {
+            user.emailAddress = email;
 
             await saveUsers(users);
         }
-
-        res.json({ success: true });
     }
+
+    if(password.length !== 0 && !passwordMatch) {
+        if(password.length < 6) {
+            return res.json({ error: 'Password must be at least 6 characters long.' });
+        } else if(password.length > 30) {
+            return res.json({ error: 'Password must be less than 30 characters long.' });
+        } else {
+            user.password = user.hashed ? await bcrypt.hash(password, 10) : password; // update the password w/ bcrypt (or plain-text if hashing disabled)
+
+            await saveUsers(users);
+        }
+    }
+
+    res.json({ success: true });
+});
+
+// Set the user's phone number and/or PIN (for their kiosk login)
+app.post("/kiosk", acceptLoggedIn, (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
+    const { phoneNumber, pin } = req.body;
+
+    const users = await readUsers();
+    const user = users.find(user => user.cpn === req.session.user);
+    const pinMatch = user.hashed ? (await bcrypt.compare(pin, (user.pin || ''))) : ((user.pin || '') === pin); // check if PIN changed at all
+    const numberMatch = user.phoneNumber === phoneNumber; // check if number changed at all
+
+    if(phoneNumber.length === 10 && !isNaN(Number(phoneNumber)) && !numberMatch) {
+        if(users.find(user => user.phoneNumber === phoneNumber)) {
+            return res.json({ error: 'This phone number is already linked to another account.' });
+        } else {
+            user.phoneNumber = phoneNumber;
+
+            await saveUsers(users);
+        }
+    }
+
+    if(pin.length === 4 && !isNaN(Number(pin)) && !pinMatch) {
+        user.pin = user.hashed ? await bcrypt.hash(pin, 10) : pin; // update the PIN w/ bcrypt (or plain-text if hashing disabled)
+
+        await saveUsers(users);
+    }
+
+    res.json({ success: true });
+});
+
+
+// -- Admin Routes -- //
+const API_CONFIGURATION = require('dotenv').parse(fs.readFileSync(path.join(process.env.API_ENVIRONMENT || '../', '.env')));
+
+app.get('/admin', rejectLoggedIn, (req, res) => {
+    res.render('admin/login');
+});
+
+app.get('/admin/dashboard', acceptLoggedIn, async (req, res) => {
+    let users = await readUsers();
+    users = users.map(user => ({
+        // strip of sensitive information, also good to truncate / make it smaller data
+        cpn: user.cpn,
+        identifier: (user?.phoneNumber?.replace(/^(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') || user?.emailAddress || 'Unknown User'),
+        disabled: user?.disabled || false,
+    }));
+
+    res.render('admin/dashboard', { analyticsCache, API_CONFIGURATION, users });
+});
+
+app.get('/admin/logout', acceptLoggedIn, (req, res) => {
+    if(req.session.admin) {
+        delete req.session.admin;
+    }
+
+    res.redirect('/admin');
+});
+
+// Login to the admin dashboard, check if the password is correct
+app.post('/admin', rejectLoggedIn, (RATE_LIMITING ? LOGIN_RATE_LIMIT : (req, res, next) => next()), async (req, res) => {
+    const { password, recaptchaToken = null } = req.body;
+
+    // Check if they have all the fields
+    if (!password) {
+        return res.json({ error: 'It looks like your request was malformed. Please refresh the page and try again!' });
+    }
+
+    // Verify the reCAPTCHA
+    if (app.locals.recaptcha && !(await verifyRecaptcha(recaptchaToken))) {
+        return res.json({ error: 'It looks like the reCAPTCHA verification failed. Please try again.' });
+    }
+
+    // Check if the password is correct
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.json({ error: 'An unauthorized attempt was detected, login is denied.' });
+    }
+
+    req.session.admin = true;
+    return res.json({ success: true, message: 'You have been successfully logged into the Redbox Perks admin dashboard.' });
+});
+
+// Get the user data information for the admin dashboard
+app.post('/admin/user', acceptLoggedIn, async (req, res) => {
+    const { cpn } = req.body;
+    const user = await readUsers().then(users => users.find(user => user.cpn === cpn));
+    if(!user) return res.json({ error: 'It looks like this user no longer exists.' });
+    
+    delete user.password;
+    delete user.pin;
+    delete user.hashed;
+
+    return res.json(user);
+});
+
+// Update the user information (email, phone number, password, pin, etc.)
+app.post('/admin/update', acceptLoggedIn, async (req, res) => {
+    const { cpn, emailAddress, phoneNumber, password, pin } = req.body;
+
+    const users = await readUsers();
+    const user = users.find(user => user.cpn === cpn);
+    if(!user) return res.json({ error: 'It looks like this user no longer exists.' });
+
+    // Check if email is valid, update if valid
+    const emailMatch = user.emailAddress === emailAddress; // check if email changed at all
+    if(emailAddress.length !== 0 && !emailMatch) {
+        if(!isValidEmail(emailAddress)) {
+            return res.json({ error: "It looks like you entered an invalid email! Please try again." });
+        } else if(users.find(user => user.emailAddress === emailAddress)) {
+            return res.json({ error: "It looks like there's already an account under this email." });
+        } else {
+            user.emailAddress = emailAddress;
+        }
+    }
+
+    // Check if phone number is valid, update if valid
+    const numberMatch = user.phoneNumber === phoneNumber; // check if number changed at all
+    if(phoneNumber.length !== 0 && !numberMatch) {
+        if(phoneNumber.length !== 10 || isNaN(Number(phoneNumber))) {
+            return res.json({ error: "A valid U.S. phone number was not entered." });
+        } else if(users.find(user => user.phoneNumber === phoneNumber)) {
+            return res.json({ error: "This phone number is already linked to another account." });
+        } else {
+            user.phoneNumber = phoneNumber;
+        }
+    }
+
+    // Check if pin is valid, update if valid
+    const pinMatch = user.hashed ? (await bcrypt.compare(pin, (user.pin || ''))) : ((user.pin || '') === pin); // check if PIN changed at all
+    if(pin.length !== 0 && !pinMatch) {
+        if(pin.length !== 4 || isNaN(Number(pin))) {
+            return res.json({ error: "It looks like this PIN is not supported." });
+        } else {
+            user.pin = (user.hashed ? await bcrypt.hash(pin, 10) : pin); // update the PIN w/ bcrypt, or plain if disabled
+        }
+    }
+
+    // Check if password is valid, update if valid
+    const passwordMatch = user.hashed ? (await bcrypt.compare(password, (user.password || ''))) : ((user.password || '') === password); // check if password changed at all
+    if(password.length !== 0 && !passwordMatch) {
+        if(password.length < 6) {
+            return res.json({ error: 'Password must be at least 6 characters long.' });
+        } else if(password.length > 30) {
+            return res.json({ error: 'Password must be less than 30 characters long.' });
+        } else {
+            user.password = (user.hashed ? await bcrypt.hash(password, 10) : password); // update the password w/ bcrypt, or plain if disabled
+        }
+    }
+
+    await saveUsers(users);
+    return res.json({ success: true, message: 'This user account has been updated successfully.' });
+});
+
+// Delete the user account or disable it (punish accounts)
+app.post('/admin/status', acceptLoggedIn, async (req, res) => {
+    const { cpn, method } = req.body;
+
+    const users = await readUsers();
+    const user = users.find(user => user.cpn === cpn);
+    if(!user) return res.json({ error: 'It looks like this user no longer exists.' });
+
+    if(method === 'delete') {
+        await saveUsers(users.filter(user => user.cpn !== cpn)); // filter out the user to remove them
+        return res.json({ success: true, message: 'This user account has been permanently deleted.' });
+    } else if(method === 'disable') {
+        user.disabled = !user.disabled; // toggle the disabled status
+        await saveUsers(users);
+        return res.json({ success: true, message: 'This user account has been successfully ' + (user.disabled ? 'disabled' : 'enabled') + '.' });
+    } else {
+        return res.json({ error: 'It looks like your request was malformed. Please refresh the page and try again!' });
+    }
+});
+
+// Send a test email to the admin to verify the SMTP server is working
+app.post('/admin/send-test-email', acceptLoggedIn, async (req, res) => {
+    const { emailAddress } = req.body;
+
+    try {
+        const transporter = require('nodemailer').createTransport({
+            host: API_CONFIGURATION.SMTP_HOSTNAME,
+            port: Number(API_CONFIGURATION.SMTP_PORT),
+            secure: true,
+            auth: {
+                user: API_CONFIGURATION.SMTP_USERNAME,
+                pass: API_CONFIGURATION.SMTP_PASSWORD,
+            },
+        });
+
+        await transporter.sendMail({
+            from: `"Redbox Perks" <${API_CONFIGURATION.SMTP_USERNAME}>`,
+            to: emailAddress,
+            subject: `Your email server is live!`,
+            html: `
+                <p>Success! Your email service has been successfully set up.</p>
+                <p>If you see this message, your email server is working correctly.</p>
+                <p>This is a test email sent from the Redbox Perks system to verify your email configuration.</p>
+                <br>
+                <p>Thank you for using Redbox Perks!</p>
+            `,
+        });
+    } catch (error) {
+        return res.json({ error: error.toString() });
+    }
+
+    res.json({ success: true });
 });
 
 app.use((req, res, next) => {
     res.status(404).redirect('/');
 });
 
-app.listen(process.env.SERVER_PORT, () => {
-    console.log(`The Redbox Perks website is sucessfully live at port ${process.env.SERVER_PORT}! 🎉`);
-});
+async function startServer() {
+    const requiredFiles = ['credentials.json', 'users.json', 'transactions.json'];
+
+    // Check if each required file exists, if not, create it with default content
+    for (const file of requiredFiles) {
+        const filePath = path.join(dbFilePath, file);
+        if (!fs.existsSync(filePath)) {
+            let content = {};
+
+            if(file === 'credentials.json') {
+                content = { "desktop": [], "field": [] };
+            } else if(file === 'users.json') {
+                content = [];
+            } else if(file === 'transactions.json') {
+                content = {};
+            }
+
+            fs.writeFileSync(filePath, JSON.stringify(content, null, 2), 'utf8');
+        }
+    }
+
+    // Start the server once done
+    app.listen(process.env.SERVER_PORT, async () => {
+        console.log(`The Redbox Perks website is sucessfully live at port ${process.env.SERVER_PORT}! 🎉`);
+        console.log('Generating analytics from recent authorized transactions... this may take a second!');
+        await generateAnalytics();
+        console.log('Analytics have been updated, transactions re-checked every 5 minutes.');
+    
+        setInterval(generateAnalytics, 5 * 60 * 1000); // every 5 minutes
+    });
+}
+
+startServer();

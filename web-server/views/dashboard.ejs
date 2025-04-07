@@ -88,9 +88,9 @@
     <%- include('footer') %>
     <script>
         async function newUserMigrate() {
-            const newUser = <%= JSON.stringify(newUser) %>;
+            const hasName = <%= (user?.firstName ? 'true' : 'false') %>;
 
-            if (newUser) {
+            if (!hasName) {
                 const firstName = prompt("Welcome to Redbox Perks! It looks like you've signed up at your local kiosk. What's your first name?");
 
                 if(firstName) {
@@ -138,10 +138,7 @@
                 const response = await $.ajax({
                     url: '/kiosk',
                     method: 'POST',
-                    data: {
-                        phoneNumber: phoneNumber,
-                        pin: pin
-                    },
+                    data: { phoneNumber, pin },
                     dataType: 'json'
                 });
     
@@ -164,11 +161,11 @@
             event.preventDefault();
             message.html('');
     
-            const email = $('#email').val().trim();
+            const emailAddress = $('#email').val().trim();
             const password = $('#password').val().trim();
-            let recaptchaResponse = useRecaptcha && typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
+            let recaptchaToken = useRecaptcha && typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
     
-            if(!recaptchaResponse && useRecaptcha) {
+            if(!recaptchaToken && useRecaptcha) {
                 return message.html('In order to verify your request, complete the reCAPTCHA.');
             }
 
@@ -176,11 +173,7 @@
                 const response = await $.ajax({
                     url: '/update',
                     method: 'POST',
-                    data: {
-                        email: email,
-                        password: password,
-                        'g-recaptcha-response': recaptchaResponse
-                    },
+                    data: { emailAddress, password, recaptchaToken },
                     dataType: 'json'
                 });
     

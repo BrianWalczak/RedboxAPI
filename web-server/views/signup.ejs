@@ -49,13 +49,13 @@
             message.text('');
     
             const firstName = $('#name').val().trim();
-            const email = $('#email').val().trim();
+            const emailAddress = $('#email').val().trim();
             const password = $('#password').val().trim();
-            let recaptchaResponse = useRecaptcha && typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
+            let recaptchaToken = useRecaptcha && typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : null;
     
-            if (!firstName || !email || !password) {
+            if (!firstName || !emailAddress || !password) {
                 return message.text('Please fill out all fields before submitting.');
-            } else if(!recaptchaResponse && useRecaptcha) {
+            } else if(!recaptchaToken && useRecaptcha) {
                 return message.text('In order to verify your request, complete the reCAPTCHA.');
             }
 
@@ -63,12 +63,7 @@
                 const response = await $.ajax({
                     url: '/signup',
                     method: 'POST',
-                    data: {
-                        firstName: firstName,
-                        email: email,
-                        password: password,
-                        'g-recaptcha-response': recaptchaResponse
-                    },
+                    data: { firstName, emailAddress, password, recaptchaToken },
                     dataType: 'json'
                 });
     

@@ -48,6 +48,11 @@ body.light_mode {
     color: white;
 }
 
+.light_mode select {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
 /* Dark Mode */
 body.dark_mode {
     background-color: #121212;
@@ -96,4 +101,9 @@ body.dark_mode {
 .dark_mode .logout {
     background-color: #BB0000;
     color: white;
+}
+
+.dark_mode select {
+    background-color: #2C2C2C;
+    color: #FFFFFF;
 }

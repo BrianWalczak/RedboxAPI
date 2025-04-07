@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require('path');
 const fs = require("fs");
 const bcrypt = require('bcryptjs');
 const { decrypt, encMethod } = require('./libs/encryption.js');
@@ -59,6 +60,16 @@ app.post("/api/customerprofile/login", async (req, res) => {
                 {
                     code: "400",
                     message: "It looks like you don't have an account yet!"
+                }
+            ]
+        });
+
+        if(getUser?.disabled === true) return res.json({
+            success: false,
+            errors: [
+                {
+                    code: "403",
+                    message: "Your account has been flagged and terminated! Please contact customer support."
                 }
             ]
         });
@@ -223,6 +234,31 @@ app.post("/api/transaction/return", async (req, res) => {
     res.json({ success: true });
 });
 
-app.listen(process.env.SERVER_PORT, () => {
-    console.log(`The Redbox API is sucessfully live at port ${process.env.SERVER_PORT}! 🎉`);
-});
+async function startServer() {
+    const requiredFiles = ['credentials.json', 'users.json', 'transactions.json'];
+
+    // Check if each required file exists, if not, create it with default content
+    for (const file of requiredFiles) {
+        const filePath = path.join(__dirname, 'database', file);
+        if (!fs.existsSync(filePath)) {
+            let content = {};
+
+            if(file === 'credentials.json') {
+                content = { "desktop": [], "field": [] };
+            } else if(file === 'users.json') {
+                content = [];
+            } else if(file === 'transactions.json') {
+                content = {};
+            }
+
+            fs.writeFileSync(filePath, JSON.stringify(content, null, 2), 'utf8');
+        }
+    }
+
+    // Start the server once done
+    app.listen(process.env.SERVER_PORT, () => {
+        console.log(`The Redbox API is sucessfully live at port ${process.env.SERVER_PORT}! 🎉`);
+    });
+}
+
+startServer();

@@ -33,9 +33,9 @@ npm install
 vi .env
 ```
 
-During this step, make a few configurations in the `.env` file as such:
+During this step, make a few configurations in your environment variables (`.env`):
 ```bash
-USERS_FILE_PATH="../database/users.json"
+API_ENVIRONMENT="../" # Path to the Redbox API directory, used to access server configuration
 USE_RECAPTCHA="false" # Use reCAPTCHA on your website (not required)
 RECAPTCHA_PUBLIC_KEY="" # Replace with reCAPTCHA public key (optional, leave blank if disabled)
 RECAPTCHA_SECRET_KEY="" # Replace with reCAPTCHA secret key (optional, leave blank if disabled)
@@ -52,7 +52,11 @@ NEW_POINT_BALANCE=2000
 # Default tier the user is signed up for.
 # Accepted Options: Member, Star, Superstar, Legend
 NEW_TIER_DEFAULT="Member"
+
+# Password to access the admin panel (case-sensitive)
+ADMIN_PASSWORD="iJikLosGYs6s&8Lo#P#Lb7s^sS8xoQDDPdMBfcKwnLJPiRj9D^R3^oAQ8aK*XDGi"
 ```
+*(throughout this project, you'll find example configurations at `.env.example`. please copy this file and rename to `.env` if you haven't configured your server yet)*
 
 > ##### If you'd like to use reCAPTCHA (completely optional), you'll need to create a new project by visiting your [Google Cloud Console](https://console.cloud.google.com/). Then, visit the **APIs & Services** page and enable the [reCAPTCHA Enterprise API](https://console.cloud.google.com/apis/library/recaptchaenterprise.googleapis.com) (you may need to search for it). After enabling the API for your Google Cloud project, access the reCAPTCHA dashboard [here](https://www.google.com/u/1/recaptcha/admin/create) and follow the steps to add your domain (the one you'll use for the dashboard) and get your reCAPTCHA keys.
 
@@ -68,8 +72,6 @@ Make sure Standalone mode on your Redbox kiosk is **disabled**. You can find thi
 
 Next, you'll need to configure a few environment variables (`.env`).
 ```bash
-# Looking for a domain to host your Redbox API? You can get a free one at www.redbox.my!
-
 BASE_DOMAIN="example.com" # Replace this with your hosted web-server domain (optional, used for signup emails)
 SERVER_PORT="2000" # Port the Redbox API will be live on
 
@@ -132,6 +134,8 @@ Within this project, you'll find the following files in the `database/` folder:
 - **credentials.json**: Use the credentials in this file to log in to Redbox Desktop or Field Maintenance on your kiosk. You can update these credentials at any time!
 - **transactions.json**: This file will contain **all** transactions made on Redbox kiosks connected to your API, including rented/purchased discs, loyalty information, card details, etc.
 - **users.json**: This file stores user accounts for the Redbox Perks loyalty system. By default, user PIN/passwords are hashed and salted (thanks to [**bcrypt.js**](https://github.com/dcodeIO/bcrypt.js)) for extra security.
+
+*(within this folder, you'll find example files for these named `______.example.json`. to create this required files, copy them and rename to the appropriate name)*
 
 ## Credits
 Once again, a big thank you to the Redbox Tinkering Community and its members [here](https://discord.gg/redboxtinkering). Special thanks to [Puyodead1](https://github.com/Puyodead1) for providing the Redbox stores database!
