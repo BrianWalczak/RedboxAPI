@@ -10,8 +10,13 @@ require('dotenv').config();
 const app = express();
 const RATE_LIMITING = process.env.RATE_LIMITING === 'true' ? true : false;
 app.locals.recaptcha = process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null;
-const API_CONFIGURATION = require('dotenv').parse(fs.readFileSync(path.join(process.env.API_ENVIRONMENT || '../', '.env')));
-const database = API_CONFIGURATION.DATABASE_PATH || path.join(__dirname, '../database');
+
+const RAW_API_LOCATION = process.env.API_ENVIRONMENT || '../';
+const API_LOCATION = path.isAbsolute(RAW_API_LOCATION) ? RAW_API_LOCATION : path.join(__dirname, RAW_API_LOCATION);
+const API_CONFIGURATION = require('dotenv').parse(fs.readFileSync(path.join(API_LOCATION, '.env')));
+
+const dbPath = API_CONFIGURATION.DATABASE_PATH || 'database';
+const database = path.isAbsolute(dbPath) ? dbPath : path.join(API_LOCATION, dbPath);
 
 const GENERAL_RATE_LIMIT = rateLimit({
     windowMs: 24 * 60 * 60 * 1000, // 24 hours

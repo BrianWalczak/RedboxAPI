@@ -2,7 +2,8 @@ const path = require('path');
 const fs = require('fs');
 
 require('dotenv').config();
-const database = process.env.DATABASE_PATH || path.join(__dirname, '../database');
+const dbPath = process.env.DATABASE_PATH || 'database';
+const database = path.isAbsolute(dbPath) ? dbPath : path.join(__dirname, '../', dbPath);
 
 async function createTransNumber() {
     const transactions = JSON.parse(await fs.promises.readFile(path.join(database, 'transactions.json'), "utf8"));

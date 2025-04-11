@@ -9,7 +9,8 @@ const { estimateAccrual, estimateRedemption, initialRewards, updateRewards, crea
 const { getUserByEmail, getUserByPhoneNumber, getUserByProfileNumber } = require('./libs/utils.js')
 const app = express();
 
-const database = process.env.DATABASE_PATH || path.join(__dirname, './database');
+const dbPath = process.env.DATABASE_PATH || 'database';
+const database = path.isAbsolute(dbPath) ? dbPath : path.join(__dirname, dbPath);
 
 /* Body Parsing */
 app.use(express.json()); // Handle JSON request bodies
