@@ -1,9 +1,11 @@
 const path = require('path');
 const fs = require('fs');
-const transPath = path.join(__dirname, '../database/transactions.json');
+
+require('dotenv').config();
+const database = process.env.DATABASE_PATH || path.join(__dirname, '../database');
 
 async function createTransNumber() {
-    const transactions = JSON.parse(await fs.promises.readFile(transPath, "utf8"));
+    const transactions = JSON.parse(await fs.promises.readFile(path.join(database, 'transactions.json'), "utf8"));
     let orderId = null;
 
     while (!orderId) {
@@ -17,7 +19,7 @@ async function createTransNumber() {
 }
 
 async function logTransaction(orderId, trans) {
-    let data = JSON.parse(await fs.promises.readFile(transPath, "utf8"));
+    let data = JSON.parse(await fs.promises.readFile(path.join(database, 'transactions.json'), "utf8"));
     let items = {
         Rental: [],
         Purchased: []
@@ -47,12 +49,12 @@ async function logTransaction(orderId, trans) {
         cardInformation: trans?.CreditCard || {}
     };
 
-    await fs.promises.writeFile(transPath, JSON.stringify(data, null, 2), "utf8");
+    await fs.promises.writeFile(path.join(database, 'transactions.json'), JSON.stringify(data, null, 2), "utf8");
     return data;
 }
 
 async function returnedDisc(kioskId, barcode, date) {
-    const data = JSON.parse(await fs.promises.readFile(transPath, "utf8"));
+    const data = JSON.parse(await fs.promises.readFile(path.join(database, 'transactions.json'), "utf8"));
     if(!barcode || !date) return [];
 
     // Find all transactions containing the disc barcode and hasn't been returned yet (at the same kiosk)
@@ -81,7 +83,7 @@ async function returnedDisc(kioskId, barcode, date) {
         });
     });
 
-    await fs.promises.writeFile(transPath, JSON.stringify(data, null, 2), 'utf8');
+    await fs.promises.writeFile(path.join(database, 'transactions.json'), JSON.stringify(data, null, 2), 'utf8');
     return transactions; // will be used for rewards later
 }
 

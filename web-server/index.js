@@ -10,6 +10,8 @@ require('dotenv').config();
 const app = express();
 const RATE_LIMITING = process.env.RATE_LIMITING === 'true' ? true : false;
 app.locals.recaptcha = process.env.USE_RECAPTCHA === 'true' ? process.env.RECAPTCHA_PUBLIC_KEY : null;
+const API_CONFIGURATION = require('dotenv').parse(fs.readFileSync(path.join(process.env.API_ENVIRONMENT || '../', '.env')));
+const database = API_CONFIGURATION.DATABASE_PATH || path.join(__dirname, '../database');
 
 const GENERAL_RATE_LIMIT = rateLimit({
     windowMs: 24 * 60 * 60 * 1000, // 24 hours
@@ -43,7 +45,6 @@ const UPDATE_RATE_LIMIT = rateLimit({
     message: "It looks like you've reached the maximum updates, please try again in 5 minutes."
 });
 
-const dbFilePath = path.join(process.env.API_ENVIRONMENT || '../', 'database');
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -63,7 +64,7 @@ app.use(session({ // login sessions
 // Read users from users.json
 async function readUsers() {
     try {
-        const data = await fs.promises.readFile(path.join(dbFilePath, 'users.json'), 'utf8');
+        const data = await fs.promises.readFile(path.join(database, 'users.json'), 'utf8');
 
         try {
             return JSON.parse(data);
@@ -79,7 +80,7 @@ async function readUsers() {
 // Save users to users.json
 async function saveUsers(users) {
     try {
-        await fs.promises.writeFile(path.join(dbFilePath, 'users.json'), JSON.stringify(users, null, 2), 'utf8');
+        await fs.promises.writeFile(path.join(database, 'users.json'), JSON.stringify(users, null, 2), 'utf8');
     } catch(error) {
         console.error("Error occurred when saving user database: ", error);
     }
@@ -122,7 +123,7 @@ const analyticsCache = [];
 
 async function generateAnalytics() {
     try {
-        const data = JSON.parse(await fs.promises.readFile(path.join(dbFilePath, 'transactions.json'), "utf8"));
+        const data = JSON.parse(await fs.promises.readFile(path.join(database, 'transactions.json'), "utf8"));
         const transactions = Object.keys(data).map(transactionId => ({
             transactionId,
             ...data[transactionId]
@@ -405,8 +406,6 @@ app.post("/kiosk", acceptLoggedIn, (RATE_LIMITING ? UPDATE_RATE_LIMIT : (req, re
 
 
 // -- Admin Routes -- //
-const API_CONFIGURATION = require('dotenv').parse(fs.readFileSync(path.join(process.env.API_ENVIRONMENT || '../', '.env')));
-
 app.get('/admin', rejectLoggedIn, (req, res) => {
     res.render('admin/login');
 });
@@ -588,7 +587,7 @@ async function startServer() {
 
     // Check if each required file exists, if not, create it with default content
     for (const file of requiredFiles) {
-        const filePath = path.join(dbFilePath, file);
+        const filePath = path.join(database, file);
         if (!fs.existsSync(filePath)) {
             let content = {};
 

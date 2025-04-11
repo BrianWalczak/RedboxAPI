@@ -72,6 +72,7 @@ Make sure Standalone mode on your Redbox kiosk is **disabled**. You can find thi
 
 Next, you'll need to configure a few environment variables (`.env`).
 ```bash
+DATABASE_PATH="./database" # Path to the database folder (transactions, users, and credentials)
 BASE_DOMAIN="example.com" # Replace this with your hosted web-server domain (optional, used for signup emails)
 SERVER_PORT="2000" # Port the Redbox API will be live on
 

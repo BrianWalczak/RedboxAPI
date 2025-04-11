@@ -1,13 +1,14 @@
 const path = require('path');
 const fs = require('fs');
-const usersPath = path.join(__dirname, '../database/users.json');
-const dbPath = path.join(__dirname, '../database/src');
+
+require('dotenv').config();
+const database = process.env.DATABASE_PATH || path.join(__dirname, '../database');
 
 // -- Users Database -- //
 
 // Read users from users.json
 async function readUsers() {
-    const data = await fs.promises.readFile(usersPath, 'utf8');
+    const data = await fs.promises.readFile(path.join(database, 'users.json'), 'utf8');
 
     try {
         return JSON.parse(data);
@@ -18,7 +19,7 @@ async function readUsers() {
 
 // Save users to users.json
 async function saveUsers(users) {
-    await fs.promises.writeFile(usersPath, JSON.stringify(users, null, 2), 'utf8');
+    await fs.promises.writeFile(path.join(database, 'users.json'), JSON.stringify(users, null, 2), 'utf8');
 }
 
 // Update a specific user in the database (based on their profile number)
@@ -75,8 +76,8 @@ async function createCPN() {
 // Uses the Redbox database (thanks Puyo) to find the store address from ID
 async function getStore(kioskId) {
     const [stores, banners] = await Promise.all([
-        fs.promises.readFile(path.join(dbPath, "stores.json")).then(JSON.parse),
-        fs.promises.readFile(path.join(dbPath, "banners.json")).then(JSON.parse)
+        fs.promises.readFile(path.join(database, 'src', "stores.json")).then(JSON.parse),
+        fs.promises.readFile(path.join(database, 'src', "banners.json")).then(JSON.parse)
     ]);
 
     const store = stores.find(s => s.Id === Number(kioskId));

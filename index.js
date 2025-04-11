@@ -9,13 +9,15 @@ const { estimateAccrual, estimateRedemption, initialRewards, updateRewards, crea
 const { getUserByEmail, getUserByPhoneNumber, getUserByProfileNumber } = require('./libs/utils.js')
 const app = express();
 
+const database = process.env.DATABASE_PATH || path.join(__dirname, './database');
+
 /* Body Parsing */
 app.use(express.json()); // Handle JSON request bodies
 app.use(express.urlencoded({ extended: true, type: 'application/x-www-form-urlencoded' })); // Handle form bodies
 app.use(express.text({ type: 'text/*' })); // Handle text bodies
 
 async function getLocalCredentials(username, type) {
-    const data = await fs.promises.readFile("database/credentials.json", "utf8");
+    const data = await fs.promises.readFile(path.join(database, 'credentials.json'), "utf8");
     const cred = JSON.parse(data);
 
     return cred[type].find(user => user.username === username);
@@ -239,7 +241,7 @@ async function startServer() {
 
     // Check if each required file exists, if not, create it with default content
     for (const file of requiredFiles) {
-        const filePath = path.join(__dirname, 'database', file);
+        const filePath = path.join(database, file);
         if (!fs.existsSync(filePath)) {
             let content = {};
 
