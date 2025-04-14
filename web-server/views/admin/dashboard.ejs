@@ -287,6 +287,10 @@
                         dropShadow: { enabled: false },
                         fontFamily: "Inter, sans-serif",
                         height: "270px",
+                        background: "transparent"
+                    },
+                    theme: {
+                        mode: (localStorage?.getItem("theme")) === 'dark_mode' ? 'dark' : 'light',
                     },
                     series: [
                         {
@@ -339,6 +343,18 @@
             $("#timeRange").on("change", function () {
                 renderChart($(this).val());
             });
+
+            // re-render when theme toggle is clicked
+            try {
+                $("#themeToggle").on("click", function () {
+                    const theme = localStorage.getItem("theme");
+                    if (chart) {
+                        chart.updateOptions({ theme: { mode: theme === 'dark_mode' ? 'dark' : 'light' } });
+                    }
+                });
+            } catch(error) {
+                console.log('Theme was not detected, defaulting to current mode.');
+            }
 
             renderChart("7"); // default is past 7-days
 
