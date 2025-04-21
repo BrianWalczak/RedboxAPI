@@ -1,3 +1,7 @@
+> [!CAUTION]
+> This project is now unmaintained and has been merged with [Puyodead1/redbox-apis](https://github.com/Puyodead1/redbox-apis). Updates will no longer be offered on this repository.
+> <br>To continue using this API, you can follow the instructions on how to setup Redbox API's [here](https://github.com/Puyodead1/redbox-apis/blob/main/README.md).
+
 <h1 align="center">Redbox Perks - Loyalty API for Redbox kiosks.</h1>
 
 <p align="center">A feature-rich API designed to restore the functionality of your Redbox kiosk and reinstate the Redbox Perks loyalty system. This enables users to sign up, earn points, and enjoy free DVD rentals!<br></p>
