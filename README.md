@@ -1,4 +1,4 @@
-<h1 align="center">Redbox Stocker - Loyalty API for Redbox kiosks.</h1>
+<h1 align="center">Redbox Perks - Loyalty API for Redbox kiosks.</h1>
 
 <p align="center">A feature-rich API designed to restore the functionality of your Redbox kiosk and reinstate the Redbox Perks loyalty system. This enables users to sign up, earn points, and enjoy free DVD rentals!<br></p>
 
